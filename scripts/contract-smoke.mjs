@@ -3,41 +3,42 @@ import { spawn } from "node:child_process";
 import { createServer } from "node:http";
 import { once } from "node:events";
 
+const times = [0, 6, 13, 20, 27, 34, 41, 48, 54, 60];
+const sampleBrief = (name) => ({
+  title: `${name} — source-backed story`,
+  summary: "An example project for a provider contract check.",
+  voiceover: "A complete voiceover for a sixty-second project introduction.",
+  sources: [{ title: "Official site", url: "https://example.org/" }],
+  facts: [{ label: "Status", value: "Example only", sourceUrl: "https://example.org/" }],
+  scenes: times.slice(0, -1).map((start, index) => ({
+    title: `Scene ${index + 1}`,
+    start,
+    end: times[index + 1],
+    overlay: `SCENE ${index + 1}`,
+    voiceover: "A scene voiceover.",
+    visualPrompt: "Dark skyline, orange sunset, consistent mascot.",
+  })),
+});
+let researchPolls = 0;
+
 const provider = createServer(async (request, response) => {
   response.setHeader("Content-Type", "application/json");
   if (request.url === "/research" && request.method === "POST") {
     let body = "";
     for await (const part of request) body += part;
     const payload = JSON.parse(body);
-    assert.equal(payload.project.name, "Example Project");
+    assert.ok(["Example Project", "Async Project"].includes(payload.project.name));
     assert.equal(payload.durationSeconds, 60);
-    const times = [0, 6, 13, 20, 27, 34, 41, 48, 54, 60];
-    response.end(
-      JSON.stringify({
-        title: "Example Project — source-backed story",
-        summary: "An example project for a provider contract check.",
-        voiceover:
-          "A complete voiceover for a sixty-second project introduction.",
-        sources: [{ title: "Official site", url: "https://example.org/" }],
-        facts: [
-          {
-            label: "Status",
-            value: "Example only",
-            sourceUrl: "https://example.org/",
-          },
-        ],
-        scenes: times
-          .slice(0, -1)
-          .map((start, index) => ({
-            title: `Scene ${index + 1}`,
-            start,
-            end: times[index + 1],
-            overlay: `SCENE ${index + 1}`,
-            voiceover: "A scene voiceover.",
-            visualPrompt: "Dark skyline, orange sunset, consistent mascot.",
-          })),
-      }),
-    );
+    response.end(JSON.stringify(payload.project.name === "Async Project"
+      ? { jobId: "research_123", status: "queued" }
+      : sampleBrief(payload.project.name)));
+    return;
+  }
+  if (request.url === "/research/research_123" && request.method === "GET") {
+    researchPolls += 1;
+    response.end(JSON.stringify(researchPolls === 1
+      ? { jobId: "research_123", status: "processing" }
+      : { jobId: "research_123", status: "completed", brief: sampleBrief("Async Project") }));
     return;
   }
   if (request.url === "/render" && request.method === "POST") {
@@ -126,6 +127,19 @@ try {
   const brief = await researched.json();
   assert.equal(brief.mode, "researched");
   assert.equal(brief.scenes.length, 9);
+  const queued = await fetch(`${base}/api/research`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ...project, name: "Async Project" }),
+  });
+  assert.equal(queued.status, 200);
+  assert.equal((await queued.json()).status, "queued");
+  const processing = await fetch(`${base}/api/research/research_123`);
+  assert.equal((await processing.json()).status, "processing");
+  const researchComplete = await fetch(`${base}/api/research/research_123`);
+  const researchResult = await researchComplete.json();
+  assert.equal(researchResult.status, "completed");
+  assert.equal(researchResult.brief.mode, "researched");
   const form = new FormData();
   form.set("project", JSON.stringify(project));
   form.set("brief", JSON.stringify(brief));
@@ -144,7 +158,7 @@ try {
   assert.equal(completed.status, 200);
   assert.equal((await completed.json()).status, "completed");
   process.stdout.write(
-    "Research, validation, upload, render job, and polling contract passed.\n",
+    "Synchronous and queued research, validation, upload, render job, and polling contracts passed.\n",
   );
 } finally {
   if (app) app.kill();

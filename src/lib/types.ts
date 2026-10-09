@@ -25,6 +25,13 @@ export type Brief = {
   disclaimer?: string;
 };
 
+export type ResearchJob = {
+  jobId: string;
+  status: "queued" | "processing" | "completed" | "failed";
+  brief?: Brief;
+  error?: string;
+};
+
 export type RenderJob = {
   jobId: string;
   status: "queued" | "processing" | "completed" | "failed";

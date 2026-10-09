@@ -22,7 +22,7 @@ import {
   X,
 } from "lucide-react";
 import { createDraft } from "@/lib/draft";
-import type { Brief, ProjectInput, RenderJob } from "@/lib/types";
+import type { Brief, ProjectInput, ResearchJob, RenderJob } from "@/lib/types";
 
 type ServiceStatus = { researchReady: boolean; videoReady: boolean };
 const emptyProject: ProjectInput = { name: "", description: "", links: [""] };
@@ -30,20 +30,21 @@ const emptyProject: ProjectInput = { name: "", description: "", links: [""] };
 function Mascot({ image }: { image: string | null }) {
   return (
     <div
-      className="mascot-wrap"
+      className={`mascot-wrap${image ? " mascot-wrap--reference" : ""}`}
       aria-label={
         image
-          ? "Uploaded profile picture in a mascot preview"
+          ? "Full uploaded profile picture in the animated storyboard preview"
           : "Reel-Forge orange mascot"
       }
       role="img"
     >
+      {image ? (
+        <div className="mascot-reference">
+          <img src={image} alt="" />
+          <span>ORIGINAL PFP</span>
+        </div>
+      ) : (
       <svg className="mascot-shape" viewBox="0 0 190 210" aria-hidden="true">
-        <defs>
-          <clipPath id="mascot-face">
-            <ellipse cx="96" cy="112" rx="55" ry="45" />
-          </clipPath>
-        </defs>
         <path
           d="M58 61 32 13 83 44 95 5l15 38 48-27-22 48c26 21 38 47 36 77-2 37-35 62-75 62-47 0-79-27-79-68 0-31 13-56 40-74Z"
           fill="var(--color-accent)"
@@ -60,44 +61,23 @@ function Mascot({ image }: { image: string | null }) {
           rx="2"
           fill="var(--color-metal)"
         />
-        {image && (
-          <image
-            href={image}
-            x="40"
-            y="66"
-            width="112"
-            height="92"
-            preserveAspectRatio="xMidYMid slice"
-            clipPath="url(#mascot-face)"
-          />
-        )}
-        {!image && (
-          <>
-            <ellipse
-              cx="96"
-              cy="112"
-              rx="56"
-              ry="46"
-              fill="var(--color-cream)"
-            />
-            <path
-              d="M76 124q20 15 40 0"
-              stroke="var(--color-ink)"
-              strokeWidth="4"
-              fill="none"
-              strokeLinecap="round"
-            />
-            <circle cx="69" cy="103" r="4" fill="var(--color-ink)" />
-            <circle cx="121" cy="103" r="4" fill="var(--color-ink)" />
-            <path
-              d="M59 83q15-8 29 0M103 83q15-8 29 0"
-              stroke="var(--color-ink)"
-              strokeWidth="3"
-              fill="none"
-              strokeLinecap="round"
-            />
-          </>
-        )}
+        <ellipse cx="96" cy="112" rx="56" ry="46" fill="var(--color-cream)" />
+        <path
+          d="M76 124q20 15 40 0"
+          stroke="var(--color-ink)"
+          strokeWidth="4"
+          fill="none"
+          strokeLinecap="round"
+        />
+        <circle cx="69" cy="103" r="4" fill="var(--color-ink)" />
+        <circle cx="121" cy="103" r="4" fill="var(--color-ink)" />
+        <path
+          d="M59 83q15-8 29 0M103 83q15-8 29 0"
+          stroke="var(--color-ink)"
+          strokeWidth="3"
+          fill="none"
+          strokeLinecap="round"
+        />
         <path
           d="M52 95c8-13 27-17 42-7M99 88c15-10 34-6 42 7"
           stroke="var(--color-ink)"
@@ -127,6 +107,7 @@ function Mascot({ image }: { image: string | null }) {
           fill="none"
         />
       </svg>
+      )}
     </div>
   );
 }
@@ -198,6 +179,7 @@ export default function ForgeStudio() {
   const [pfp, setPfp] = useState<File | null>(null);
   const [pfpUrl, setPfpUrl] = useState<string | null>(null);
   const [brief, setBrief] = useState<Brief | null>(null);
+  const [researchJob, setResearchJob] = useState<ResearchJob | null>(null);
   const [selectedScene, setSelectedScene] = useState(0);
   const [service, setService] = useState<ServiceStatus | null>(null);
   const [busy, setBusy] = useState<"research" | "render" | null>(null);
@@ -214,9 +196,45 @@ export default function ForgeStudio() {
   }, []);
   useEffect(() => {
     setBrief(null);
+    setResearchJob(null);
     setJob(null);
     setSelectedScene(0);
   }, [project]);
+  useEffect(() => {
+    if (!researchJob || !["queued", "processing"].includes(researchJob.status))
+      return;
+    const timer = window.setInterval(async () => {
+      try {
+        const response = await fetch(
+          `/api/research/${encodeURIComponent(researchJob.jobId)}`,
+          { cache: "no-store" },
+        );
+        const data = await response.json();
+        if (!response.ok)
+          throw new Error(data.error || "Could not check research progress.");
+        const next = data as ResearchJob;
+        if (next.status === "completed" && next.brief) {
+          setBrief(next.brief);
+          setSelectedScene(0);
+          setResearchJob(null);
+          document
+            .getElementById("preview")
+            ?.scrollIntoView({ behavior: "smooth", block: "center" });
+        } else {
+          setResearchJob(next);
+          if (next.status === "failed")
+            setError(next.error || "Research failed. Please try again.");
+        }
+      } catch (cause) {
+        setError(
+          cause instanceof Error
+            ? cause.message
+            : "Could not check research progress.",
+        );
+      }
+    }, 5000);
+    return () => window.clearInterval(timer);
+  }, [researchJob?.jobId, researchJob?.status]);
   useEffect(() => {
     if (!pfp) {
       setPfpUrl(null);
@@ -250,7 +268,9 @@ export default function ForgeStudio() {
     return () => window.clearInterval(timer);
   }, [job?.jobId, job?.status]);
 
-  const canSubmit = project.name.trim().length > 0 && !busy;
+  const researchPending =
+    researchJob?.status === "queued" || researchJob?.status === "processing";
+  const canSubmit = project.name.trim().length > 0 && !busy && !researchPending;
   const validLinks = useMemo(
     () =>
       project.links
@@ -298,6 +318,7 @@ export default function ForgeStudio() {
     }
     setBusy("research");
     setError(null);
+    setResearchJob(null);
     setJob(null);
     try {
       const response = await fetch("/api/research", {
@@ -308,11 +329,18 @@ export default function ForgeStudio() {
       const data = await response.json();
       if (!response.ok)
         throw new Error(data.error || "Research did not finish.");
-      setBrief(data as Brief);
-      setSelectedScene(0);
-      document
-        .getElementById("preview")
-        ?.scrollIntoView({ behavior: "smooth", block: "center" });
+      if (data.jobId && data.status !== "completed") {
+        const next = data as ResearchJob;
+        setResearchJob(next);
+        if (next.status === "failed")
+          setError(next.error || "Research failed. Please try again.");
+      } else {
+        setBrief(data.jobId ? (data as ResearchJob).brief ?? null : data as Brief);
+        setSelectedScene(0);
+        document
+          .getElementById("preview")
+          ?.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
     } catch (cause) {
       setError(
         cause instanceof Error ? cause.message : "Research did not finish.",
@@ -378,6 +406,7 @@ export default function ForgeStudio() {
     setProject(emptyProject);
     setPfp(null);
     setBrief(null);
+    setResearchJob(null);
     setSelectedScene(0);
     setJob(null);
     setError(null);
@@ -615,7 +644,7 @@ export default function ForgeStudio() {
                       <small>
                         {pfp
                           ? "Click to replace this image"
-                          : "Choose an image to guide the future AI mascot"}
+                          : "See the full PFP here; AI stylization needs a connected provider"}
                       </small>
                     </span>
                     <ArrowUpRight size={17} />
@@ -646,7 +675,7 @@ export default function ForgeStudio() {
                     type="submit"
                     disabled={!canSubmit || !validLinks}
                   >
-                    {busy === "research" ? (
+                    {busy === "research" || researchPending ? (
                       <>
                         <LoaderCircle size={18} className="spin" /> Researching…
                       </>
@@ -662,8 +691,10 @@ export default function ForgeStudio() {
                       </>
                     )}
                   </button>
-                  <span>
-                    {service?.researchReady
+                  <span aria-live="polite">
+                    {researchPending
+                      ? "Research is running · this can take several minutes"
+                      : service?.researchReady
                       ? "Checks sources before writing the film"
                       : "Draft preview · no AI research yet"}
                   </span>

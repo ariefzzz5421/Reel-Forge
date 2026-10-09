@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { validateBrief, validateProject } from "@/lib/validation";
+import { validateProject, validateResearchJob, validateSourcedBrief } from "@/lib/validation";
 
 export const runtime = "nodejs";
 
@@ -49,27 +49,15 @@ export async function POST(request: NextRequest) {
         { error: `Research provider returned ${response.status}.` },
         { status: 502 },
       );
-    const brief = validateBrief(await response.json());
-    if (!brief)
+    const result: unknown = await response.json();
+    const brief = validateSourcedBrief(result);
+    const job = brief ? null : validateResearchJob(result);
+    if (!brief && !job)
       return NextResponse.json(
-        {
-          error:
-            "Research provider returned an invalid brief. Check the API contract.",
-        },
+        { error: "Research provider returned an invalid or unsourced result. Check the API contract." },
         { status: 502 },
       );
-    if (
-      brief.facts.some((fact) => !fact.sourceUrl) ||
-      brief.sources.length === 0
-    )
-      return NextResponse.json(
-        {
-          error:
-            "Research provider must cite its sources before this can be treated as researched.",
-        },
-        { status: 502 },
-      );
-    return NextResponse.json(brief, {
+    return NextResponse.json(brief ?? job, {
       headers: { "Cache-Control": "no-store" },
     });
   } catch {

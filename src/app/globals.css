@@ -659,6 +659,51 @@ video {
   width: 100%;
   display: block;
 }
+.mascot-wrap--reference {
+  width: 30%;
+  height: 58%;
+  right: 7%;
+  bottom: 9%;
+  filter: none;
+  transform: none;
+  animation: mascot-hover 4s ease-in-out infinite;
+}
+.mascot-reference {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  border: 2px solid var(--color-accent);
+  border-radius: 14px;
+  background: color-mix(in oklch, var(--color-ink) 84%, var(--color-accent));
+  box-shadow: 0 15px 35px color-mix(in oklch, var(--color-ink) 45%, transparent);
+}
+.mascot-reference img {
+  display: block;
+  width: 100%;
+  height: calc(100% - 22px);
+  min-height: 0;
+  padding: 8%;
+  object-fit: contain;
+}
+.mascot-reference span {
+  display: block;
+  height: 22px;
+  padding: 4px 2px;
+  color: var(--color-cream);
+  background: var(--color-ink);
+  text-align: center;
+  white-space: nowrap;
+  font-size: clamp(6px, 0.65vw, 9px);
+  font-weight: 800;
+  letter-spacing: 0.07em;
+  border-radius: 0 0 12px 12px;
+}
+@keyframes mascot-hover {
+  0%, 100% { transform: translateY(0) rotate(2deg); }
+  50% { transform: translateY(-7px) rotate(-2deg); }
+}
 .skyline {
   position: absolute;
   bottom: -1px;
@@ -1208,6 +1253,11 @@ video {
     width: 30%;
     right: 3%;
     bottom: 3%;
+  }
+  .mascot-wrap--reference {
+    height: 58%;
+    right: 3%;
+    bottom: 7%;
   }
   .stage-footer {
     padding: 18px 7px;

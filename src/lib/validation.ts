@@ -1,4 +1,4 @@
-import type { Brief, ProjectInput, RenderJob, Scene, Source } from "./types";
+import type { Brief, ProjectInput, ResearchJob, RenderJob, Scene, Source } from "./types";
 
 export function publicUrl(value: unknown): string | null {
   if (typeof value !== "string" || value.length > 2048) return null;
@@ -142,6 +142,30 @@ export function validateBrief(value: unknown): Brief | null {
       typeof data.disclaimer === "string"
         ? data.disclaimer.slice(0, 500)
         : undefined,
+  };
+}
+
+export function validateSourcedBrief(value: unknown): Brief | null {
+  const brief = validateBrief(value);
+  if (!brief || brief.sources.length === 0 || brief.facts.some((fact) => !fact.sourceUrl))
+    return null;
+  return brief;
+}
+
+export function validateResearchJob(value: unknown): ResearchJob | null {
+  if (!value || typeof value !== "object") return null;
+  const data = value as Record<string, unknown>;
+  if (typeof data.jobId !== "string" || !/^[\w-]{1,128}$/.test(data.jobId))
+    return null;
+  if (!["queued", "processing", "completed", "failed"].includes(String(data.status)))
+    return null;
+  const brief = data.status === "completed" ? validateSourcedBrief(data.brief) : null;
+  if (data.status === "completed" && !brief) return null;
+  return {
+    jobId: data.jobId,
+    status: data.status as ResearchJob["status"],
+    brief: brief ?? undefined,
+    error: typeof data.error === "string" ? data.error.slice(0, 300) : undefined,
   };
 }
 

@@ -72,6 +72,8 @@ JSON response:
 
 Return **8–10 contiguous scenes covering exactly 0–60 seconds**. Every fact must have a public source URL; include at least one source. Prefer official references, distinguish an unverified claim from a confirmed one, and omit facts you cannot support. The app rejects briefs that violate this minimum contract. The PFP is not sent to research; it is sent only to the render provider.
 
+Research may also run as a background job. In that case, `POST` returns `{ "jobId": "research_123", "status": "queued" }`. The site polls `GET REEL_FORGE_RESEARCH_API_URL/{jobId}` every five seconds. Return `queued`, `processing`, `completed`, or `failed`. A completed job must contain the sourced brief in `brief`; a failed job may contain `error`. This avoids making the browser wait for a long research request. The initial `POST` still needs to acknowledge the job within 45 seconds. Research and render jobs must be stored by the provider; the current browser UI does not restore an interrupted job after a reload.
+
 The research service must treat the user's links as untrusted. If it crawls them, block private and local network targets, redirects to private addresses, and non-HTTP protocols. Return source URLs that viewers can open.
 
 ### Render: `POST REEL_FORGE_VIDEO_API_URL`
@@ -95,7 +97,19 @@ The site polls `GET REEL_FORGE_VIDEO_API_URL/{jobId}` every five seconds. Return
 { "jobId": "job_123", "status": "completed", "videoUrl": "https://cdn.example.org/job_123.mp4" }
 ```
 
-Failure can include an `error` string. The provider is responsible for image stylization, narration, music licensing, final composition, media storage, and a playable video URL. The on-page scene stage is a visual storyboard preview, not the final generated video.
+Failure can include an `error` string. The provider is responsible for image stylization, narration, music licensing, final composition, media storage, and a playable video URL. The on-page scene stage shows the complete original PFP with gentle CSS movement. It is a visual storyboard preview, not an AI-stylized mascot or the final generated video.
+
+## What a production provider needs
+
+The two URLs above are **adapter endpoints**, not direct drop-in URLs for a model company. The adapter needs to orchestrate these stages:
+
+1. Search public and official sources for the project, cite claims, and write the brief. A search-grounded model can do this, but factual claims still need validation and review.
+2. Turn the uploaded PFP into one approved character reference image, then reuse that image in every scene. Preserve recognisable features. Generative video cannot guarantee perfect character consistency.
+3. Generate short scene footage. Compose exact overlays, phone UI, transitions, and timing with deterministic motion graphics rather than relying on a video model to render exact text.
+4. Generate the narration, select properly licensed music, mix audio, and assemble/export a 16:9 MP4.
+5. Run long stages in a durable background job and store PFPs, clips, and final video in media storage. Return a playable HTTPS URL from the render job.
+
+One possible provider stack is [Gemini with Google Search grounding](https://ai.google.dev/gemini-api/docs/google-search/), [Gemini image editing](https://ai.google.dev/gemini-api/docs/image-generation), [Veo video generation](https://ai.google.dev/gemini-api/docs/veo), and [Gemini text-to-speech](https://ai.google.dev/gemini-api/docs/speech-generation), plus a composition worker and storage such as [Vercel Blob](https://vercel.com/docs/vercel-blob). These are examples, not configured dependencies. Check model access, quotas, and current pricing before selecting providers. Keep API credentials on the server. Protect public generation endpoints with authentication, rate limits, and spending limits before enabling paid services.
 
 ## Checks
 
