@@ -39,6 +39,15 @@ assert.equal(brief.mode, "researched");
 assert.equal(brief.sources[0].url, source);
 assert.equal(brief.scenes.length, 9);
 assert.match(brief.searchSuggestionsHtml, /Search/);
+let calls = 0;
+const fallbackBrief = await researchWithGemini(project, "test-key", async (url, init) => {
+  calls += 1;
+  if (calls === 1) return new Response("{}", { status: 404 });
+  assert.match(url, /gemini-2\.5-flash-lite:generateContent$/);
+  return mock("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent", init);
+});
+assert.equal(fallbackBrief.mode, "researched");
+assert.equal(calls, 2);
 await assert.rejects(
   researchWithGemini(project, "test-key", async () => new Response("{}", { status: 429 })),
   (error) => error instanceof GeminiResearchError && error.status === 429,
