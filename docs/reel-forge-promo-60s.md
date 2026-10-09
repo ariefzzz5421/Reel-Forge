@@ -6,13 +6,13 @@
 
 **0–60 seconds, approximately 120 words; warm, confident delivery with short pauses at scene changes.**
 
-Every crypto project begins with a spark. But sparks need a story. People need to see the idea, feel its momentum, and understand why it matters. Meet Reel-Forge: a name for turning that challenge into a visual story. Picture a project brief becoming a sharp, sixty-second introduction, grounded in facts you can verify. A friendly guide moves through the problem, promise, and proof, one beat at a time. Clear words meet warm color, kinetic motion, and focused screens that keep every detail easy to follow. No empty hype. Just an energetic way to make the essentials memorable. Give your community a story they can recognize, revisit, and share. This is Reel-Forge. Follow the project on GitHub to see what comes next.
+Every big idea begins with a spark. But sparks need a story. People need to see the idea, feel its momentum, and understand why it matters. Meet Reel-Forge: a name for turning that challenge into a visual story. Picture a project brief becoming a sharp, sixty-second introduction, grounded in facts you can verify. A friendly guide moves through the problem, promise, and proof, one beat at a time. Clear words meet warm color, kinetic motion, and focused screens that keep every detail easy to follow. No empty hype. Just an energetic way to make the essentials memorable. Give your community a story they can recognize, revisit, and share. This is Reel-Forge. Follow the project on GitHub to see what comes next.
 
 ### SCENE-BY-SCENE BREAKDOWN
 
 **Scene 1 – Intro (0–6s)**
 - On-screen text: White **“EVERY IDEA”** → orange **“STARTS WITH A SPARK”**.
-- Voiceover: “Every crypto project begins with a spark. But sparks need a story.”
+- Voiceover: “Every big idea begins with a spark. But sparks need a story.”
 - Visual prompt for image/video generation: 16:9, premium 2D/2.5D motion graphics. A deep charcoal city skyline silhouette occupies the bottom 18% of frame; an amber-to-burnt-orange sunset gradient fills the sky. The Reel-Forge mascot, a small friendly orange creature with three swept-back spikes, round black glasses, cream face, charcoal zip jacket, and one tiny silver tech badge, leaps onto a rooftop and catches a glowing spark. Leave the upper third clear for the **exact** overlay “EVERY IDEA / STARTS WITH A SPARK”; the second line is orange, the first warm white. Slow camera push-in, spark trails, quick text scale-up, soft parallax skyline. Clean silhouettes and crisp typography, no coins, tokens, or fabricated logos.
 
 **Scene 2 – The challenge (6–13s)**
