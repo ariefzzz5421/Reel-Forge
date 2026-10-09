@@ -23,6 +23,7 @@ export type Brief = {
   facts: Fact[];
   scenes: Scene[];
   disclaimer?: string;
+  searchSuggestionsHtml?: string;
 };
 
 export type ResearchJob = {

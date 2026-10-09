@@ -142,6 +142,11 @@ export function validateBrief(value: unknown): Brief | null {
       typeof data.disclaimer === "string"
         ? data.disclaimer.slice(0, 500)
         : undefined,
+    searchSuggestionsHtml:
+      typeof data.searchSuggestionsHtml === "string" &&
+      data.searchSuggestionsHtml.length <= 30_000
+        ? data.searchSuggestionsHtml
+        : undefined,
   };
 }
 

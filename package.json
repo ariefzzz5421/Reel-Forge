@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "typecheck": "tsc --noEmit",
-    "test:contract": "node scripts/contract-smoke.mjs"
+    "test:contract": "node scripts/contract-smoke.mjs",
+    "test:gemini": "node --import tsx scripts/gemini-smoke.mjs"
   },
   "dependencies": {
     "lucide-react": "^0.468.0",
@@ -19,6 +20,7 @@
     "@types/node": "^22.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
+    "tsx": "^4.23.15",
     "typescript": "^5.9.0"
   }
 }

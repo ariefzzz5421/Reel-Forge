@@ -356,7 +356,9 @@ export default function ForgeStudio() {
     try {
       const form = new FormData();
       form.set("project", JSON.stringify(currentProject()));
-      form.set("brief", JSON.stringify(brief));
+      const briefForRender = { ...brief };
+      delete briefForRender.searchSuggestionsHtml;
+      form.set("brief", JSON.stringify(briefForRender));
       if (pfp) form.set("pfp", pfp);
       const response = await fetch("/api/render", {
         method: "POST",
@@ -386,8 +388,10 @@ export default function ForgeStudio() {
   }
   function downloadBrief() {
     if (!brief) return;
+    const briefForDownload = { ...brief };
+    delete briefForDownload.searchSuggestionsHtml;
     const blob = new Blob(
-      [JSON.stringify({ project: currentProject(), brief }, null, 2)],
+      [JSON.stringify({ project: currentProject(), brief: briefForDownload }, null, 2)],
       { type: "application/json" },
     );
     const url = URL.createObjectURL(blob);
@@ -918,6 +922,14 @@ export default function ForgeStudio() {
                       </a>
                     ))}
                   </div>
+                  {brief.searchSuggestionsHtml && (
+                    <iframe
+                      className="search-suggestions"
+                      title="Google Search suggestions for this research"
+                      srcDoc={brief.searchSuggestionsHtml}
+                      sandbox="allow-popups allow-popups-to-escape-sandbox"
+                    />
+                  )}
                 </div>
               </div>
             )}

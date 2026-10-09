@@ -14,7 +14,23 @@ Copy-Item .env.example .env.local
 npm.cmd run dev
 ```
 
-Open `http://localhost:3000`. Without configured services, the site intentionally offers a **draft from user notes**. It does not claim to have researched the project or produced a finished video. Set server-side environment variables in `.env.local` to enable those stages:
+Open `http://localhost:3000`. Without configured services, the site intentionally offers a **draft from user notes**. It does not claim to have researched the project or produced a finished video.
+
+### Direct Gemini research
+
+Create a Gemini API key in [Google AI Studio](https://aistudio.google.com/api-keys), then put this in `.env.local` for local development or in Vercel **Project → Settings → Environment Variables** for Production:
+
+```text
+GEMINI_API_KEY=your-gemini-api-key
+```
+
+Redeploy after setting the Vercel variable. The research button then uses Gemini 2.5 Flash with Google Search grounding to create a sourced 60-second storyboard. It shows the returned search sources and Search suggestions. This is a synchronous request with a 50-second provider timeout; it may fail if Google does not return usable citations or the key has no quota. Review the factual claims before publishing. The PFP is not sent to Gemini research. This key does **not** enable video rendering. `REEL_FORGE_API_KEY` is only for generic adapter authentication; do not put a Gemini key there. If `REEL_FORGE_RESEARCH_API_URL` is also set, the generic research provider takes precedence.
+
+The public research endpoint currently has no account login or durable rate limit. Keep the Gemini project on its free tier for testing; add authentication and quota controls before connecting paid usage. Check [Gemini API pricing](https://ai.google.dev/gemini-api/docs/pricing) and the [data-use terms for unpaid API services](https://ai.google.dev/gemini-api/terms) before accepting sensitive project descriptions.
+
+### Generic provider adapters
+
+Alternatively, set server-side environment variables in `.env.local` for your own research and video services:
 
 ```text
 REEL_FORGE_RESEARCH_API_URL=https://your-provider.example/research

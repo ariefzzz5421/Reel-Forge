@@ -1030,6 +1030,14 @@ video {
   color: var(--color-accent);
   border-color: var(--color-accent);
 }
+.search-suggestions {
+  display: block;
+  width: 100%;
+  min-height: 76px;
+  margin-top: 18px;
+  border: 0;
+  background: transparent;
+}
 .render-panel {
   margin-top: 34px;
   border: var(--rule-thin);
