@@ -1289,7 +1289,8 @@ video {
     display: grid;
     align-items: start;
   }
-  .form-actions .primary-button {
+  .form-actions .primary-button,
+  .form-actions .secondary-button {
     width: 100%;
   }
   .result-section {

@@ -494,7 +494,7 @@ export default function ForgeStudio() {
                 <span className="panel-index">01 / YOUR MATERIAL</span>
                 <span className="panel-state">
                   {service?.researchReady
-                    ? "RESEARCH CONNECTED"
+                    ? "RESEARCH KEY CONFIGURED"
                     : "RESEARCH API PENDING"}
                 </span>
               </div>
@@ -695,6 +695,16 @@ export default function ForgeStudio() {
                       </>
                     )}
                   </button>
+                  {service?.researchReady && (
+                    <button
+                      className="secondary-button"
+                      type="button"
+                      onClick={prepareDraft}
+                      disabled={!canSubmit || !validLinks}
+                    >
+                      <Sparkles size={17} /> Preview from my notes
+                    </button>
+                  )}
                   <span aria-live="polite">
                     {researchPending
                       ? "Research is running · this can take several minutes"
