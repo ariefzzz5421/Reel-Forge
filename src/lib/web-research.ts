@@ -182,7 +182,7 @@ export async function researchWithWebSearch(
       if (brief && brief.facts.length > 0) {
         const sceneNarration = brief.scenes.map((scene) => scene.voiceover).join(" ");
         const spokenWords = wordCount(sceneNarration);
-        if (spokenWords >= 100 && spokenWords <= 150 && brief.scenes.every((scene) => wordCount(scene.voiceover) <= 20))
+        if (spokenWords >= 90 && spokenWords <= 150 && brief.scenes.every((scene) => wordCount(scene.voiceover) <= 20))
           return { ...brief, voiceover: sceneNarration, sources, disclaimer: "AI-generated script based on web search excerpts. Fact cards quote search excerpts; review the full sources and every script claim before publishing." };
         scriptIssue = "Gemini narration did not fit 60 seconds";
         console.warn("Reel-Forge Gemini narration pacing invalid", model, spokenWords);
