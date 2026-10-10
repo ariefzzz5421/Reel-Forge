@@ -36,6 +36,7 @@ export async function POST(request: NextRequest) {
   if (
     !project ||
     !brief ||
+    brief.scriptReady === false ||
     (briefValue && (briefValue as { mode?: string }).mode !== "researched")
   )
     return NextResponse.json(

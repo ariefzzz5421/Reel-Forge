@@ -39,6 +39,7 @@ const brief = await researchWithWebSearch(project, "gemini-key", undefined, asyn
 });
 assert.equal(calls, 2);
 assert.equal(brief.mode, "researched");
+assert.notEqual(brief.scriptReady, false);
 assert.equal(brief.facts[0].sourceUrl, source);
 
 const fallback = await researchWithWebSearch(project, "gemini-key", "tavily-key", async (url, init) => {
@@ -49,6 +50,7 @@ const fallback = await researchWithWebSearch(project, "gemini-key", "tavily-key"
   return new Response("{}", { status: 503 });
 });
 assert.match(fallback.disclaimer, /outline/);
+assert.equal(fallback.scriptReady, false);
 assert.equal(fallback.scenes.length, 9);
 assert.equal(fallback.sources[0].url, source);
 

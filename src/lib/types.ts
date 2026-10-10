@@ -16,6 +16,7 @@ export type Scene = {
 };
 export type Brief = {
   mode: "researched" | "draft";
+  scriptReady?: boolean;
   title: string;
   summary: string;
   voiceover: string;

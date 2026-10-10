@@ -350,7 +350,7 @@ export default function ForgeStudio() {
     }
   }
   async function renderVideo() {
-    if (!brief || brief.mode !== "researched") return;
+    if (!brief || brief.mode !== "researched" || brief.scriptReady === false) return;
     setBusy("render");
     setError(null);
     try {
@@ -816,7 +816,7 @@ export default function ForgeStudio() {
                   <FileText size={16} />
                 )}{" "}
                 {brief.mode === "researched"
-                  ? "SOURCE-BACKED RESEARCH"
+                  ? brief.scriptReady === false ? "SOURCE NOTES · SCRIPT PENDING" : "SOURCE-BACKED RESEARCH"
                   : "DRAFT FROM YOUR NOTES"}
               </div>
             </div>
@@ -862,7 +862,7 @@ export default function ForgeStudio() {
               </div>
               <div className="script-panel">
                 <div className="result-subhead">
-                  <h3>Voiceover script</h3>
+                  <h3>{brief.scriptReady === false ? "Source excerpt outline" : "Voiceover script"}</h3>
                   <button
                     type="button"
                     className="mini-action"
@@ -966,6 +966,8 @@ export default function ForgeStudio() {
                           ? "Connect a video API to turn your researched brief into a finished film."
                           : brief.mode !== "researched"
                             ? "Run source-backed research before rendering a video."
+                            : brief.scriptReady === false
+                              ? "AI scriptwriting was unavailable. Retry research before rendering."
                             : "Your sourced brief and PFP will be sent securely to the video provider."}
                 </p>
               </div>
@@ -986,6 +988,7 @@ export default function ForgeStudio() {
                     disabled={
                       !service?.videoReady ||
                       brief.mode !== "researched" ||
+                      brief.scriptReady === false ||
                       Boolean(busy) ||
                       (job !== null && job.status !== "failed")
                     }

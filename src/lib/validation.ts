@@ -132,6 +132,7 @@ export function validateBrief(value: unknown): Brief | null {
     : [];
   return {
     mode: "researched",
+    scriptReady: data.scriptReady === false ? false : undefined,
     title: data.title,
     summary: data.summary,
     voiceover: data.voiceover,
