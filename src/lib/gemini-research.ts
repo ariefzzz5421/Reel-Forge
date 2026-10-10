@@ -58,14 +58,21 @@ Project input: ${JSON.stringify(project)}`;
         "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent",
         requestInit,
       );
+    if (usingLinks && (response.status === 503 || response.status === 404))
+      response = await request(
+        "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent",
+        requestInit,
+      );
   } catch {
     throw new GeminiResearchError("Gemini did not respond. Try again later.");
   }
   if (!response.ok) {
     if (response.status === 404)
       throw new GeminiResearchError(usingLinks
-        ? "Gemini 3.8 Flash is unavailable for this API project. Check its model access in Google AI Studio."
+        ? "This Google project has no access to the Gemini URL-reading models. Check its model access in Google AI Studio."
         : "This Google project has no access to Gemini 2.5 search models. Add an official reference link for free URL-based research, or use a search provider.");
+    if (response.status === 503)
+      throw new GeminiResearchError("Gemini is temporarily unavailable. Try the research again later.", 503);
     if (response.status === 429)
       throw new GeminiResearchError("Gemini free-tier limit reached. Try again later.", 429);
     if (response.status === 400 || response.status === 401 || response.status === 403)

@@ -64,6 +64,21 @@ assert.equal(linkBrief.mode, "researched");
 assert.equal(linkBrief.sources[0].url, source);
 assert.equal(linkBrief.searchSuggestionsHtml, undefined);
 assert.match(linkBrief.disclaimer, /supplied links/);
+let urlCalls = 0;
+const urlFallbackBrief = await researchWithGemini(project, "test-key", async (url, init) => {
+  urlCalls += 1;
+  if (urlCalls === 1) return new Response("{}", { status: 503 });
+  assert.match(url, /gemini-3\.5-flash-lite:generateContent$/);
+  return new Response(JSON.stringify({ candidates: [{
+    content: { parts: [{ text: responseText }] },
+    urlContextMetadata: { urlMetadata: [{
+      retrievedUrl: source,
+      urlRetrievalStatus: "URL_RETRIEVAL_STATUS_SUCCESS",
+    }] },
+  }] }));
+});
+assert.equal(urlFallbackBrief.mode, "researched");
+assert.equal(urlCalls, 2);
 await assert.rejects(
   researchWithGemini(project, "test-key", async () => new Response("{}", { status: 429 })),
   (error) => error instanceof GeminiResearchError && error.status === 429,
