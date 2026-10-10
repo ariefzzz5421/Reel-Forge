@@ -19,6 +19,7 @@ const responseText = JSON.stringify({
   })),
 });
 const project = { name: "Example Project", description: "", links: [source] };
+const nameOnlyProject = { ...project, links: [] };
 const candidate = {
   candidates: [{
     content: { parts: [{ text: responseText }] },
@@ -34,13 +35,13 @@ const mock = async (url, init) => {
   assert.deepEqual(JSON.parse(init.body).tools, [{ google_search: {} }]);
   return new Response(JSON.stringify(candidate), { status: 200 });
 };
-const brief = await researchWithGemini(project, "test-key", mock);
+const brief = await researchWithGemini(nameOnlyProject, "test-key", mock);
 assert.equal(brief.mode, "researched");
 assert.equal(brief.sources[0].url, source);
 assert.equal(brief.scenes.length, 9);
 assert.match(brief.searchSuggestionsHtml, /Search/);
 let calls = 0;
-const fallbackBrief = await researchWithGemini(project, "test-key", async (url, init) => {
+const fallbackBrief = await researchWithGemini(nameOnlyProject, "test-key", async (url, init) => {
   calls += 1;
   if (calls === 1) return new Response("{}", { status: 404 });
   assert.match(url, /gemini-2\.5-flash-lite:generateContent$/);
@@ -48,6 +49,21 @@ const fallbackBrief = await researchWithGemini(project, "test-key", async (url, 
 });
 assert.equal(fallbackBrief.mode, "researched");
 assert.equal(calls, 2);
+const linkBrief = await researchWithGemini(project, "test-key", async (url, init) => {
+  assert.match(url, /gemini-3\.8-flash:generateContent$/);
+  assert.deepEqual(JSON.parse(init.body).tools, [{ url_context: {} }]);
+  return new Response(JSON.stringify({ candidates: [{
+    content: { parts: [{ text: responseText }] },
+    urlContextMetadata: { urlMetadata: [{
+      retrievedUrl: source,
+      urlRetrievalStatus: "URL_RETRIEVAL_STATUS_SUCCESS",
+    }] },
+  }] }));
+});
+assert.equal(linkBrief.mode, "researched");
+assert.equal(linkBrief.sources[0].url, source);
+assert.equal(linkBrief.searchSuggestionsHtml, undefined);
+assert.match(linkBrief.disclaimer, /supplied links/);
 await assert.rejects(
   researchWithGemini(project, "test-key", async () => new Response("{}", { status: 429 })),
   (error) => error instanceof GeminiResearchError && error.status === 429,
@@ -55,7 +71,7 @@ await assert.rejects(
 const withoutSources = structuredClone(candidate);
 withoutSources.candidates[0].groundingMetadata.groundingChunks = [];
 await assert.rejects(
-  researchWithGemini(project, "test-key", async () => new Response(JSON.stringify(withoutSources))),
+  researchWithGemini(nameOnlyProject, "test-key", async () => new Response(JSON.stringify(withoutSources))),
   /verifiable search sources/,
 );
 process.stdout.write("Gemini request, source gate, and quota error checks passed.\n");
