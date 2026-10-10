@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { validateProject, validateResearchJob, validateSourcedBrief } from "@/lib/validation";
 import { GeminiResearchError, researchWithGemini } from "@/lib/gemini-research";
+import { researchWithWebSearch } from "@/lib/web-research";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -26,7 +27,9 @@ export async function POST(request: NextRequest) {
     );
   if (!endpoint && process.env.GEMINI_API_KEY) {
     try {
-      const brief = await researchWithGemini(project, process.env.GEMINI_API_KEY);
+      const brief = project.links.length
+        ? await researchWithGemini(project, process.env.GEMINI_API_KEY)
+        : await researchWithWebSearch(project, process.env.GEMINI_API_KEY, process.env.TAVILY_API_KEY);
       return NextResponse.json(brief, { headers: { "Cache-Control": "no-store" } });
     } catch (cause) {
       const error = cause instanceof GeminiResearchError

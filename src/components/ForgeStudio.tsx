@@ -550,8 +550,8 @@ export default function ForgeStudio() {
                     <Link2 size={16} />
                   </div>
                   <p className="field-help">
-                    Official site, docs, X profile, or launch post. These will
-                    be sent to your research API.
+                    Official site, docs, X profile, or launch post. These help
+                    the research service verify your project.
                   </p>
                   <div className="link-list">
                     {project.links.map((link, index) => (
@@ -709,7 +709,7 @@ export default function ForgeStudio() {
                     {researchPending
                       ? "Research is running · this can take several minutes"
                       : service?.researchReady
-                      ? "Checks sources before writing the film"
+                      ? "Web search is quota-limited · review every source"
                       : "Draft preview · no AI research yet"}
                   </span>
                 </div>
