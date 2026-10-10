@@ -17,12 +17,16 @@ function shortExcerpt(content: string): string {
   return (sentence || clean.slice(0, 220)).slice(0, 260);
 }
 
-function sourceNotesBrief(project: ProjectInput, evidence: { source: Source; excerpt: string }[], scriptIssue: string): Brief {
-  const facts = evidence.slice(0, 5).map(({ source, excerpt }) => ({
+function evidenceFacts(evidence: { source: Source; excerpt: string }[]) {
+  return evidence.slice(0, 5).map(({ source, excerpt }) => ({
     label: source.title.slice(0, 80),
     value: excerpt.slice(0, 400),
     sourceUrl: source.url,
   }));
+}
+
+function sourceNotesBrief(project: ProjectInput, evidence: { source: Source; excerpt: string }[], scriptIssue: string): Brief {
+  const facts = evidenceFacts(evidence);
   const lines = [
     `Meet ${project.name}. Here is what public sources say about the project.`,
     ...facts.map((fact) => fact.value),
@@ -161,6 +165,7 @@ export async function researchWithWebSearch(
       const normalized = {
         ...parsed,
         sources,
+        facts: evidenceFacts(evidence),
         scenes: Array.isArray(parsed.scenes) && parsed.scenes.length === 9
           ? parsed.scenes.map((scene, index) => ({
               ...(scene && typeof scene === "object" ? scene : {}),
@@ -170,16 +175,15 @@ export async function researchWithWebSearch(
           : parsed.scenes,
       };
       const brief = validateSourcedBrief(normalized);
-      const sourceUrls = new Set(sources.map((source) => source.url.replace(/\/$/, "")));
-      if (brief && brief.facts.length > 0 && brief.facts.every((fact) => sourceUrls.has(fact.sourceUrl!.replace(/\/$/, ""))))
-        return { ...brief, sources, disclaimer: "AI-generated script based on web search excerpts. Open each source and verify the claims before publishing." };
+      if (brief && brief.facts.length > 0)
+        return { ...brief, sources, disclaimer: "AI-generated script based on web search excerpts. Fact cards quote search excerpts; review the full sources and every script claim before publishing." };
       console.warn("Reel-Forge Gemini script failed validation", model, {
         finishReason: result?.candidates?.[0]?.finishReason,
         textLength: text.length,
         sceneCount: Array.isArray(parsed.scenes) ? parsed.scenes.length : null,
         factCount: Array.isArray(parsed.facts) ? parsed.facts.length : null,
         briefValid: Boolean(brief),
-        factUrlsListed: brief ? brief.facts.every((fact) => sourceUrls.has(fact.sourceUrl!.replace(/\/$/, ""))) : null,
+        validatedFactCount: brief?.facts.length ?? null,
         sceneKeys: Array.isArray(parsed.scenes) && parsed.scenes[0] && typeof parsed.scenes[0] === "object"
           ? Object.keys(parsed.scenes[0]) : null,
         missingTopFields: ["title", "summary", "voiceover", "facts"].filter((field) => parsed[field] == null),

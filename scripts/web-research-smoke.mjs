@@ -73,6 +73,7 @@ const unverified = await researchWithWebSearch(project, "gemini-key", undefined,
   url.includes("tavily") ? Response.json(webPayload)
     : Response.json({ candidates: [{ content: { parts: [{ text: JSON.stringify(wrongSource) }] } }] }),
 );
-assert.match(unverified.disclaimer, /outline/);
+assert.notEqual(unverified.scriptReady, false);
 assert.equal(unverified.facts[0].sourceUrl, source);
+assert.doesNotMatch(unverified.facts[0].value, /Not supported/);
 process.stdout.write("Web search, Gemini writing, source check, outline fallback, and quota checks passed.\n");
