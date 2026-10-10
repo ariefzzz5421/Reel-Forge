@@ -22,29 +22,42 @@ import {
   X,
 } from "lucide-react";
 import { createDraft } from "@/lib/draft";
+import { makePfpCutout } from "@/lib/pfp-cutout";
 import type { Brief, ProjectInput, ResearchJob, RenderJob } from "@/lib/types";
 
 type ServiceStatus = { researchReady: boolean; videoReady: boolean };
 const emptyProject: ProjectInput = { name: "", description: "", links: [""] };
 
-function Mascot({ image }: { image: string | null }) {
+function Mascot({
+  image,
+  cutout,
+  processing,
+}: {
+  image: string | null;
+  cutout: boolean;
+  processing: boolean;
+}) {
   return (
     <div
-      className={`mascot-wrap${image ? " mascot-wrap--reference" : ""}`}
+      className={`mascot-wrap${cutout ? " mascot-wrap--cutout" : image ? " mascot-wrap--reference" : ""}`}
       aria-label={
-        image
-          ? "Full uploaded profile picture in the animated storyboard preview"
-          : "Reel-Forge orange mascot"
+        cutout
+          ? "Uploaded character with background removed in the storyboard preview"
+          : image
+            ? "Uploaded profile picture in the storyboard preview"
+            : "Reel-Forge orange mascot"
       }
       role="img"
     >
-      {image ? (
+      {cutout && image ? (
+        <img className="mascot-cutout" src={image} alt="" />
+      ) : image ? (
         <div className="mascot-reference">
           <img src={image} alt="" />
-          <span>ORIGINAL PFP</span>
+          <span>{processing ? "CREATING CUTOUT" : "ORIGINAL PFP"}</span>
         </div>
       ) : (
-      <svg className="mascot-shape" viewBox="0 0 190 210" aria-hidden="true">
+        <svg className="mascot-shape" viewBox="0 0 190 210" aria-hidden="true">
         <path
           d="M58 61 32 13 83 44 95 5l15 38 48-27-22 48c26 21 38 47 36 77-2 37-35 62-75 62-47 0-79-27-79-68 0-31 13-56 40-74Z"
           fill="var(--color-accent)"
@@ -106,7 +119,7 @@ function Mascot({ image }: { image: string | null }) {
           strokeWidth="5"
           fill="none"
         />
-      </svg>
+        </svg>
       )}
     </div>
   );
@@ -116,11 +129,15 @@ function SceneStage({
   brief,
   projectName,
   image,
+  cutout,
+  processing,
   selectedScene,
 }: {
   brief: Brief | null;
   projectName: string;
   image: string | null;
+  cutout: boolean;
+  processing: boolean;
   selectedScene: number;
 }) {
   const scene = brief?.scenes[selectedScene];
@@ -153,7 +170,7 @@ function SceneStage({
             : "CRAFTED FOR THE NEXT BIG INTRO"}
         </div>
       </div>
-      <Mascot image={image} />
+      <Mascot image={image} cutout={cutout} processing={processing} />
       <svg
         className="skyline"
         viewBox="0 0 1200 220"
@@ -178,6 +195,10 @@ export default function ForgeStudio() {
   const [project, setProject] = useState<ProjectInput>(emptyProject);
   const [pfp, setPfp] = useState<File | null>(null);
   const [pfpUrl, setPfpUrl] = useState<string | null>(null);
+  const [pfpCutout, setPfpCutout] = useState<File | null>(null);
+  const [pfpCutoutUrl, setPfpCutoutUrl] = useState<string | null>(null);
+  const [cutoutStatus, setCutoutStatus] = useState<"idle" | "processing" | "ready" | "failed">("idle");
+  const [cutoutMessage, setCutoutMessage] = useState("");
   const [brief, setBrief] = useState<Brief | null>(null);
   const [researchJob, setResearchJob] = useState<ResearchJob | null>(null);
   const [selectedScene, setSelectedScene] = useState(0);
@@ -238,11 +259,39 @@ export default function ForgeStudio() {
   useEffect(() => {
     if (!pfp) {
       setPfpUrl(null);
+      setPfpCutout(null);
+      setPfpCutoutUrl(null);
+      setCutoutStatus("idle");
+      setCutoutMessage("");
       return;
     }
     const url = URL.createObjectURL(pfp);
     setPfpUrl(url);
-    return () => URL.revokeObjectURL(url);
+    setPfpCutout(null);
+    setPfpCutoutUrl(null);
+    setCutoutStatus("processing");
+    setCutoutMessage("Preparing automatic cutout…");
+    let cancelled = false;
+    let resultUrl: string | null = null;
+    void makePfpCutout(pfp, (message) => {
+      if (!cancelled) setCutoutMessage(message);
+    }).then((result) => {
+      if (cancelled) return;
+      resultUrl = URL.createObjectURL(result);
+      setPfpCutout(result);
+      setPfpCutoutUrl(resultUrl);
+      setCutoutStatus("ready");
+      setCutoutMessage("Background removed. Your character is ready.");
+    }).catch(() => {
+      if (cancelled) return;
+      setCutoutStatus("failed");
+      setCutoutMessage("Automatic cutout did not work for this PFP. Showing the original image.");
+    });
+    return () => {
+      cancelled = true;
+      URL.revokeObjectURL(url);
+      if (resultUrl) URL.revokeObjectURL(resultUrl);
+    };
   }, [pfp]);
   useEffect(() => {
     if (!job || !["queued", "processing"].includes(job.status)) return;
@@ -351,6 +400,7 @@ export default function ForgeStudio() {
   }
   async function renderVideo() {
     if (!brief || brief.mode !== "researched" || brief.scriptReady === false) return;
+    if (pfp && cutoutStatus === "processing") return;
     setBusy("render");
     setError(null);
     try {
@@ -359,7 +409,7 @@ export default function ForgeStudio() {
       const briefForRender = { ...brief };
       delete briefForRender.searchSuggestionsHtml;
       form.set("brief", JSON.stringify(briefForRender));
-      if (pfp) form.set("pfp", pfp);
+      if (pfp) form.set("pfp", pfpCutout ?? pfp);
       const response = await fetch("/api/render", {
         method: "POST",
         body: form,
@@ -630,6 +680,8 @@ export default function ForgeStudio() {
                         return;
                       }
                       setPfp(file);
+                      setPfpCutout(null);
+                      setPfpCutoutUrl(null);
                       setError(null);
                     }}
                   />
@@ -648,17 +700,25 @@ export default function ForgeStudio() {
                       <small>
                         {pfp
                           ? "Click to replace this image"
-                          : "See the full PFP here; AI stylization needs a connected provider"}
+                          : "Your character will be cut out automatically for the preview"}
                       </small>
                     </span>
                     <ArrowUpRight size={17} />
                   </label>
+                  {pfp && (
+                    <p className={`cutout-status cutout-status--${cutoutStatus}`} role="status">
+                      {cutoutStatus === "processing" && <LoaderCircle size={15} className="spin" />}
+                      {cutoutMessage}
+                    </p>
+                  )}
                   {pfp && (
                     <button
                       type="button"
                       className="text-button remove-upload"
                       onClick={() => {
                         setPfp(null);
+                        setPfpCutout(null);
+                        setPfpCutoutUrl(null);
                         if (fileRef.current) fileRef.current.value = "";
                       }}
                     >
@@ -725,7 +785,9 @@ export default function ForgeStudio() {
               <SceneStage
                 brief={brief}
                 projectName={project.name}
-                image={pfpUrl}
+                image={pfpCutoutUrl ?? pfpUrl}
+                cutout={Boolean(pfpCutoutUrl)}
+                processing={cutoutStatus === "processing"}
                 selectedScene={selectedScene}
               />
               <div className="stage-footer">
@@ -989,6 +1051,7 @@ export default function ForgeStudio() {
                       !service?.videoReady ||
                       brief.mode !== "researched" ||
                       brief.scriptReady === false ||
+                      cutoutStatus === "processing" ||
                       Boolean(busy) ||
                       (job !== null && job.status !== "failed")
                     }

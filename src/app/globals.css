@@ -489,6 +489,17 @@ video {
 .remove-upload {
   padding-top: 8px;
 }
+.cutout-status {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 9px 0 0;
+  color: var(--color-muted);
+  font-size: 11px;
+  line-height: 1.4;
+}
+.cutout-status--ready { color: var(--color-accent); }
+.cutout-status--failed { color: var(--color-error); }
 .form-error {
   color: var(--color-error);
   font-size: 13px;
@@ -667,6 +678,21 @@ video {
   filter: none;
   transform: none;
   animation: mascot-hover 4s ease-in-out infinite;
+}
+.mascot-wrap--cutout {
+  width: 32%;
+  height: 73%;
+  right: 7%;
+  bottom: 4%;
+  transform: none;
+  animation: mascot-hover 4s ease-in-out infinite;
+}
+.mascot-cutout {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: center bottom;
 }
 .mascot-reference {
   width: 100%;
@@ -1266,6 +1292,12 @@ video {
     height: 58%;
     right: 3%;
     bottom: 7%;
+  }
+  .mascot-wrap--cutout {
+    width: 32%;
+    height: 70%;
+    right: 3%;
+    bottom: 4%;
   }
   .stage-footer {
     padding: 18px 7px;

@@ -4,6 +4,8 @@ Reel-Forge is a source-aware creative workbench for 60-second project introducti
 
 The [original 60-second creative brief](docs/reel-forge-promo-60s.md) remains available as a style reference. It is a concept, not a factual product claim.
 
+Uploaded PFPs are automatically processed in the browser for the storyboard preview: a small on-demand segmentation model removes the background, trims transparent space, and places the character over the skyline. The 4.7 MB [u2netp model](https://github.com/bunn-io/rembg-web/releases/download/base-models/u2netp.onnx) is served by this site and loads only after upload. This does not redraw or animate the PFP. If browser processing fails, the original upload stays visible in its reference frame. When a video provider is connected, the cutout PNG is sent in the existing `pfp` field if available; otherwise the original image is sent. Segmentation is approximate, so detailed hair or busy backgrounds can need a cleaner source image.
+
 ## Run locally
 
 Requires Node.js 20.9 or newer.
