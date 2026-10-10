@@ -42,6 +42,15 @@ assert.equal(brief.mode, "researched");
 assert.notEqual(brief.scriptReady, false);
 assert.equal(brief.facts[0].sourceUrl, source);
 
+const looseTiming = { ...result, sources: [], scenes: result.scenes.map((scene) => ({ ...scene, start: 0, end: 1 })) };
+const normalized = await researchWithWebSearch(project, "gemini-key", undefined, async (url) =>
+  url.includes("tavily") ? Response.json(webPayload)
+    : Response.json({ candidates: [{ content: { parts: [{ text: JSON.stringify(looseTiming) }] } }] }),
+);
+assert.notEqual(normalized.scriptReady, false);
+assert.equal(normalized.scenes.at(-1).end, 60);
+assert.equal(normalized.sources[0].url, source);
+
 const fallback = await researchWithWebSearch(project, "gemini-key", "tavily-key", async (url, init) => {
   if (url.includes("tavily")) {
     assert.equal(init.headers.Authorization, "Bearer tavily-key");

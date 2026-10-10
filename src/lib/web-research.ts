@@ -157,11 +157,22 @@ export async function researchWithWebSearch(
         scriptIssue = "Gemini returned incomplete JSON";
         continue;
       }
-      const brief = validateSourcedBrief(raw);
+      const parsed = raw && typeof raw === "object" ? raw as Record<string, unknown> : {};
+      const normalized = {
+        ...parsed,
+        sources,
+        scenes: Array.isArray(parsed.scenes) && parsed.scenes.length === 9
+          ? parsed.scenes.map((scene, index) => ({
+              ...(scene && typeof scene === "object" ? scene : {}),
+              start: sceneTimes[index],
+              end: sceneTimes[index + 1],
+            }))
+          : parsed.scenes,
+      };
+      const brief = validateSourcedBrief(normalized);
       const sourceUrls = new Set(sources.map((source) => source.url.replace(/\/$/, "")));
       if (brief && brief.facts.length > 0 && brief.facts.every((fact) => sourceUrls.has(fact.sourceUrl!.replace(/\/$/, ""))))
         return { ...brief, sources, disclaimer: "AI-generated script based on web search excerpts. Open each source and verify the claims before publishing." };
-      const parsed = raw && typeof raw === "object" ? raw as Record<string, unknown> : {};
       console.warn("Reel-Forge Gemini script failed validation", model, {
         finishReason: result?.candidates?.[0]?.finishReason,
         textLength: text.length,
@@ -169,6 +180,9 @@ export async function researchWithWebSearch(
         factCount: Array.isArray(parsed.facts) ? parsed.facts.length : null,
         briefValid: Boolean(brief),
         factUrlsListed: brief ? brief.facts.every((fact) => sourceUrls.has(fact.sourceUrl!.replace(/\/$/, ""))) : null,
+        sceneKeys: Array.isArray(parsed.scenes) && parsed.scenes[0] && typeof parsed.scenes[0] === "object"
+          ? Object.keys(parsed.scenes[0]) : null,
+        missingTopFields: ["title", "summary", "voiceover", "facts"].filter((field) => parsed[field] == null),
       });
       scriptIssue = "Gemini script failed source or format checks";
     } catch {
