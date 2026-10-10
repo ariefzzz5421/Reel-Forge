@@ -70,6 +70,12 @@ await assert.rejects(
   researchWithWebSearch(project, "gemini-key", undefined, async () => new Response("{}", { status: 429 })),
   /allowance was reached/,
 );
+await assert.rejects(
+  researchWithWebSearch(project, "gemini-key", undefined, async () => Response.json({
+    results: [{ title: "Unrelated", url: "https://other.example/item", content: "A completely different application with no matching project identity." }],
+  })),
+  /no usable sources/,
+);
 
 const wrongSource = { ...result, facts: [{ label: "Funding", value: "Not supported", sourceUrl: "https://other.example/fund" }] };
 const unverified = await researchWithWebSearch(project, "gemini-key", undefined, async (url) =>

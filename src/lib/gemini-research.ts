@@ -29,6 +29,7 @@ export async function researchWithGemini(
   project: ProjectInput,
   key: string,
   request: typeof fetch = fetch,
+  timeoutMs = 50_000,
 ): Promise<Brief> {
   const usingLinks = project.links.length > 0;
   const prompt = `You are a careful researcher and a creative director for a 60-second project intro video.
@@ -44,7 +45,7 @@ Project input: ${JSON.stringify(project)}`;
       tools: usingLinks ? [{ url_context: {} }] : [{ google_search: {} }],
       generationConfig: { temperature: 0.2, maxOutputTokens: 7000 },
     }),
-    signal: AbortSignal.timeout(50_000),
+    signal: AbortSignal.timeout(timeoutMs),
     cache: "no-store",
   };
   let response: Response;

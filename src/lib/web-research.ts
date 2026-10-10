@@ -84,13 +84,13 @@ export async function researchWithWebSearch(
           : { "X-Tavily-Access-Mode": "keyless" }),
       },
       body: JSON.stringify({
-        query: `"${project.name}" official project website product features team status ${project.description.slice(0, 180)}`.trim(),
+        query: `"${project.name}" official project website product features team status ${project.description.slice(0, 180)} ${project.links.map((link) => new URL(link).hostname).join(" ")}`.trim(),
         search_depth: "basic",
         max_results: 7,
         include_answer: false,
         include_raw_content: false,
       }),
-      signal: AbortSignal.timeout(15_000),
+      signal: AbortSignal.timeout(10_000),
       cache: "no-store",
     });
   } catch {
@@ -112,18 +112,21 @@ export async function researchWithWebSearch(
     throw new GeminiResearchError("Web search returned an unreadable response.");
   }
   const seen = new Set<string>();
-  const evidence = (payload.results ?? []).flatMap((item) => {
+  const projectSlug = project.name.toLowerCase().replace(/[^a-z0-9]/g, "");
+  const evidence = (Array.isArray(payload.results) ? payload.results : []).flatMap((item) => {
+    if (!item || typeof item !== "object") return [];
     const url = publicUrl(item.url);
     const title = typeof item.title === "string" ? item.title.trim().slice(0, 180) : "";
     const excerpt = typeof item.content === "string" ? shortExcerpt(item.content) : "";
     if (!url || !title || excerpt.length < 30 || seen.has(url)) return [];
+    if (projectSlug.length >= 4 && ![title, url, excerpt].some((value) =>
+      value.toLowerCase().replace(/[^a-z0-9]/g, "").includes(projectSlug))) return [];
     seen.add(url);
     return [{ source: { title, url }, excerpt }];
   }).slice(0, 7);
   if (!evidence.length)
     throw new GeminiResearchError("Web search found no usable sources. Try a more specific project name or add an official link.");
 
-  const projectSlug = project.name.toLowerCase().replace(/[^a-z0-9]/g, "");
   const isProjectHost = (url: string) => projectSlug.length >= 4 &&
     new URL(url).hostname.toLowerCase().replace(/[^a-z0-9]/g, "").includes(projectSlug);
   evidence.sort((a, b) => Number(isProjectHost(b.source.url)) - Number(isProjectHost(a.source.url)));
@@ -140,7 +143,7 @@ export async function researchWithWebSearch(
           contents: [{ parts: [{ text: prompt }] }],
           generationConfig: { temperature: 0.2, maxOutputTokens: 5000, responseMimeType: "application/json" },
         }),
-        signal: AbortSignal.timeout(15_000),
+        signal: AbortSignal.timeout(12_000),
         cache: "no-store",
       });
       if (!response.ok) {

@@ -27,9 +27,16 @@ export async function POST(request: NextRequest) {
     );
   if (!endpoint && process.env.GEMINI_API_KEY) {
     try {
-      const brief = project.links.length
-        ? await researchWithGemini(project, process.env.GEMINI_API_KEY)
-        : await researchWithWebSearch(project, process.env.GEMINI_API_KEY, process.env.TAVILY_API_KEY);
+      let brief;
+      if (project.links.length) {
+        try {
+          brief = await researchWithGemini(project, process.env.GEMINI_API_KEY, fetch, 8_000);
+        } catch {
+          brief = await researchWithWebSearch(project, process.env.GEMINI_API_KEY, process.env.TAVILY_API_KEY);
+        }
+      } else {
+        brief = await researchWithWebSearch(project, process.env.GEMINI_API_KEY, process.env.TAVILY_API_KEY);
+      }
       return NextResponse.json(brief, { headers: { "Cache-Control": "no-store" } });
     } catch (cause) {
       const error = cause instanceof GeminiResearchError
