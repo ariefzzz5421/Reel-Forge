@@ -19,6 +19,9 @@ const result = {
     visualPrompt: "Mascot and orange city.",
   })),
 };
+for (const scene of result.scenes)
+  scene.voiceover = "Discover this creator tool through verified public details, and explore how artists can make simple clips.";
+result.voiceover = result.scenes.map((scene) => scene.voiceover).join(" ");
 const webPayload = {
   answer: "Example Project is a creator tool.",
   results: [{ title: "Official example", url: source, content: "Example Project is a creator tool for artists. It makes simple clips." }],
