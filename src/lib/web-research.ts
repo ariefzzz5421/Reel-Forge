@@ -146,11 +146,30 @@ export async function researchWithWebSearch(
       }
       const result = await response.json();
       const text = result?.candidates?.[0]?.content?.parts?.map((part: { text?: string }) => part.text ?? "").join("") ?? "";
-      const brief = validateSourcedBrief(parseJson(text));
+      let raw: unknown;
+      try {
+        raw = parseJson(text);
+      } catch {
+        console.warn("Reel-Forge Gemini script JSON invalid", model, {
+          finishReason: result?.candidates?.[0]?.finishReason,
+          textLength: text.length,
+        });
+        scriptIssue = "Gemini returned incomplete JSON";
+        continue;
+      }
+      const brief = validateSourcedBrief(raw);
       const sourceUrls = new Set(sources.map((source) => source.url.replace(/\/$/, "")));
       if (brief && brief.facts.length > 0 && brief.facts.every((fact) => sourceUrls.has(fact.sourceUrl!.replace(/\/$/, ""))))
         return { ...brief, sources, disclaimer: "AI-generated script based on web search excerpts. Open each source and verify the claims before publishing." };
-      console.warn("Reel-Forge Gemini script failed validation", model);
+      const parsed = raw && typeof raw === "object" ? raw as Record<string, unknown> : {};
+      console.warn("Reel-Forge Gemini script failed validation", model, {
+        finishReason: result?.candidates?.[0]?.finishReason,
+        textLength: text.length,
+        sceneCount: Array.isArray(parsed.scenes) ? parsed.scenes.length : null,
+        factCount: Array.isArray(parsed.facts) ? parsed.facts.length : null,
+        briefValid: Boolean(brief),
+        factUrlsListed: brief ? brief.facts.every((fact) => sourceUrls.has(fact.sourceUrl!.replace(/\/$/, ""))) : null,
+      });
       scriptIssue = "Gemini script failed source or format checks";
     } catch {
       console.warn("Reel-Forge Gemini script request failed", model);
