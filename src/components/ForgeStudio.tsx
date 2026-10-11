@@ -25,7 +25,7 @@ import { createDraft } from "@/lib/draft";
 import { makePfpCutout } from "@/lib/pfp-cutout";
 import type { Brief, ProjectInput, ResearchJob, RenderJob } from "@/lib/types";
 
-type ServiceStatus = { researchReady: boolean; videoReady: boolean };
+type ServiceStatus = { researchReady: boolean; videoReady: boolean; videoMode: "provider" | "browser" | "none" };
 const emptyProject: ProjectInput = { name: "", description: "", links: [""] };
 
 function Mascot({
@@ -205,22 +205,39 @@ export default function ForgeStudio() {
   const [service, setService] = useState<ServiceStatus | null>(null);
   const [busy, setBusy] = useState<"research" | "render" | null>(null);
   const [job, setJob] = useState<RenderJob | null>(null);
+  const [autoRender, setAutoRender] = useState(false);
+  const [renderProgress, setRenderProgress] = useState(0);
+  const [renderMessage, setRenderMessage] = useState("");
+  const [videoExtension, setVideoExtension] = useState("mp4");
+  const [voiceoverWarning, setVoiceoverWarning] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [copyState, setCopyState] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const renderAbortRef = useRef<AbortController | null>(null);
+  const videoUrlRef = useRef<string | null>(null);
 
   useEffect(() => {
     fetch("/api/status", { cache: "no-store" })
       .then((response) => response.json())
       .then(setService)
-      .catch(() => setService({ researchReady: false, videoReady: false }));
+      .catch(() => setService({ researchReady: false, videoReady: false, videoMode: "none" }));
   }, []);
   useEffect(() => {
+    renderAbortRef.current?.abort();
+    if (videoUrlRef.current) URL.revokeObjectURL(videoUrlRef.current);
+    videoUrlRef.current = null;
     setBrief(null);
     setResearchJob(null);
     setJob(null);
     setSelectedScene(0);
+    setAutoRender(false);
   }, [project]);
+  useEffect(() => () => {
+    renderAbortRef.current?.abort();
+    if (videoUrlRef.current) URL.revokeObjectURL(videoUrlRef.current);
+    void audioContextRef.current?.close();
+  }, []);
   useEffect(() => {
     if (!researchJob || !["queued", "processing"].includes(researchJob.status))
       return;
@@ -236,6 +253,7 @@ export default function ForgeStudio() {
         const next = data as ResearchJob;
         if (next.status === "completed" && next.brief) {
           setBrief(next.brief);
+          setAutoRender(next.brief.scriptReady !== false);
           setSelectedScene(0);
           setResearchJob(null);
           document
@@ -256,6 +274,12 @@ export default function ForgeStudio() {
     }, 5000);
     return () => window.clearInterval(timer);
   }, [researchJob?.jobId, researchJob?.status]);
+  useEffect(() => {
+    if (!autoRender || !brief || !service || (pfp && cutoutStatus === "processing")) return;
+    setAutoRender(false);
+    if (brief.mode === "researched" && brief.scriptReady !== false && service?.videoReady)
+      void renderVideo(brief);
+  }, [autoRender, brief, cutoutStatus, pfp, service]);
   useEffect(() => {
     if (!pfp) {
       setPfpUrl(null);
@@ -294,7 +318,7 @@ export default function ForgeStudio() {
     };
   }, [pfp]);
   useEffect(() => {
-    if (!job || !["queued", "processing"].includes(job.status)) return;
+    if (!job || job.jobId.startsWith("browser-") || !["queued", "processing"].includes(job.status)) return;
     const timer = window.setInterval(async () => {
       try {
         const response = await fetch(
@@ -369,6 +393,14 @@ export default function ForgeStudio() {
     setError(null);
     setResearchJob(null);
     setJob(null);
+    setAutoRender(false);
+    setRenderProgress(0);
+    setRenderMessage("");
+    setVoiceoverWarning("");
+    if (service?.videoMode === "browser" && typeof AudioContext !== "undefined" && !audioContextRef.current) {
+      audioContextRef.current = new AudioContext();
+      void audioContextRef.current.resume();
+    }
     try {
       const response = await fetch("/api/research", {
         method: "POST",
@@ -384,7 +416,9 @@ export default function ForgeStudio() {
         if (next.status === "failed")
           setError(next.error || "Research failed. Please try again.");
       } else {
-        setBrief(data.jobId ? (data as ResearchJob).brief ?? null : data as Brief);
+        const nextBrief = data.jobId ? (data as ResearchJob).brief ?? null : data as Brief;
+        setBrief(nextBrief);
+        setAutoRender(Boolean(nextBrief && nextBrief.scriptReady !== false));
         setSelectedScene(0);
         document
           .getElementById("preview")
@@ -398,31 +432,88 @@ export default function ForgeStudio() {
       setBusy(null);
     }
   }
-  async function renderVideo() {
-    if (!brief || brief.mode !== "researched" || brief.scriptReady === false) return;
+  async function renderVideo(briefToRender: Brief | null = brief) {
+    if (!briefToRender || briefToRender.mode !== "researched" || briefToRender.scriptReady === false) return;
     if (pfp && cutoutStatus === "processing") return;
     setBusy("render");
     setError(null);
+    setRenderProgress(0);
+    setVoiceoverWarning("");
+    const controller = new AbortController();
+    renderAbortRef.current = controller;
+    if (service?.videoMode === "browser" && typeof AudioContext !== "undefined" && !audioContextRef.current) {
+      audioContextRef.current = new AudioContext();
+      void audioContextRef.current.resume();
+    }
     try {
       const form = new FormData();
       form.set("project", JSON.stringify(currentProject()));
-      const briefForRender = { ...brief };
+      const briefForRender = { ...briefToRender };
       delete briefForRender.searchSuggestionsHtml;
       form.set("brief", JSON.stringify(briefForRender));
       if (pfp) form.set("pfp", pfpCutout ?? pfp);
+      if (service?.videoMode === "browser") {
+        const jobId = `browser-${Date.now()}`;
+        setJob({ jobId, status: "processing" });
+        setRenderMessage("Creating the English voiceover…");
+        let narration: Blob | null = null;
+        try {
+          const speech = await fetch("/api/voiceover", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(briefForRender),
+            signal: controller.signal,
+          });
+          if (!speech.ok) {
+            const detail = await speech.json().catch(() => ({}));
+            throw new Error(detail.error || "Voiceover is unavailable.");
+          }
+          narration = await speech.blob();
+        } catch (cause) {
+          if (controller.signal.aborted) throw cause;
+          setVoiceoverWarning("Gemini voiceover was unavailable; this video has no narration.");
+        }
+        if (!audioContextRef.current) {
+          narration = null;
+          setVoiceoverWarning("This browser cannot add voiceover; the video has no narration.");
+        }
+        setRenderMessage("Recording the 60-second motion graphics video. Keep this tab visible.");
+        const { renderMotionVideo } = await import("@/lib/video-composer");
+        const video = await renderMotionVideo({
+          brief: briefToRender,
+          project: currentProject(),
+          mascot: pfpCutout ?? pfp,
+          voiceover: narration,
+          audioContext: audioContextRef.current,
+          signal: controller.signal,
+          onProgress: (percent, message) => {
+            setRenderProgress(percent);
+            setRenderMessage(message);
+          },
+        });
+        if (videoUrlRef.current) URL.revokeObjectURL(videoUrlRef.current);
+        const url = URL.createObjectURL(video.blob);
+        videoUrlRef.current = url;
+        setVideoExtension(video.extension);
+        setJob({ jobId, status: "completed", videoUrl: url });
+        return;
+      }
       const response = await fetch("/api/render", {
         method: "POST",
         body: form,
+        signal: controller.signal,
       });
       const data = await response.json();
       if (!response.ok)
         throw new Error(data.error || "Could not start rendering.");
       setJob(data as RenderJob);
     } catch (cause) {
-      setError(
-        cause instanceof Error ? cause.message : "Could not start rendering.",
-      );
+      if (controller.signal.aborted) return;
+      const message = cause instanceof Error ? cause.message : "Could not start rendering.";
+      setError(message);
+      setJob({ jobId: `browser-${Date.now()}`, status: "failed", error: message });
     } finally {
+      renderAbortRef.current = null;
       setBusy(null);
     }
   }
@@ -457,12 +548,17 @@ export default function ForgeStudio() {
     window.setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
   function reset() {
+    renderAbortRef.current?.abort();
     setProject(emptyProject);
     setPfp(null);
     setBrief(null);
     setResearchJob(null);
     setSelectedScene(0);
     setJob(null);
+    setAutoRender(false);
+    setRenderProgress(0);
+    setRenderMessage("");
+    setVoiceoverWarning("");
     setError(null);
     if (fileRef.current) fileRef.current.value = "";
   }
@@ -504,9 +600,8 @@ export default function ForgeStudio() {
               <span>a story worth watching.</span>
             </h1>
             <p>
-              Shape a 60-second story from your project details and mascot.
-              Connect your research and video services when you’re ready for the
-              final film.
+              Add a project and a mascot. Reel-Forge researches the story, then
+              records a 60-second motion graphics video you can download.
             </p>
             <a className="hero-link" href="#studio">
               Start forging <ArrowDown size={17} />
@@ -745,7 +840,7 @@ export default function ForgeStudio() {
                       </>
                     ) : service?.researchReady ? (
                       <>
-                        <Search size={18} /> Research project{" "}
+                        <Search size={18} /> {service.videoReady ? "Research & make video" : "Research project"}{" "}
                         <ArrowRight size={18} />
                       </>
                     ) : (
@@ -839,8 +934,8 @@ export default function ForgeStudio() {
               </h2>
             </div>
             <p>
-              The creative steps are ready. Connect your own providers when you
-              want sourced research and finished video generation.
+              One click moves from sourced research to a narrated video. Your
+              browser records the final scenes after the script is ready.
             </p>
           </div>
           <div className="process-rail">
@@ -857,7 +952,7 @@ export default function ForgeStudio() {
             <div>
               <span>03</span>
               <h3>Render the moment</h3>
-              <p>Send the approved brief and PFP to your video provider.</p>
+              <p>Animate the scenes and cutout PFP into a downloadable video.</p>
             </div>
           </div>
         </section>
@@ -1010,7 +1105,7 @@ export default function ForgeStudio() {
                 <span className="eyebrow">FINAL CUT</span>
                 <h3>
                   {job?.status === "completed"
-                    ? "Your film is ready."
+                    ? voiceoverWarning ? "Your silent video is ready." : "Your film is ready."
                     : job?.status === "failed"
                       ? "Render failed."
                       : job
@@ -1021,16 +1116,20 @@ export default function ForgeStudio() {
                   {job?.status === "failed"
                     ? job.error || "Try starting another render."
                     : job?.status === "completed"
-                      ? "Watch and download your finished video."
+                      ? voiceoverWarning || "Watch and download your finished video. Your file stays in this browser until you save it."
                       : job
-                        ? "The video provider is working. This page checks the job every five seconds."
+                        ? job.jobId.startsWith("browser-")
+                          ? `${renderMessage} ${renderProgress > 0 ? `${renderProgress}%` : ""}`
+                          : "The video provider is working. This page checks the job every five seconds."
                         : !service?.videoReady
                           ? "Connect a video API to turn your researched brief into a finished film."
                           : brief.mode !== "researched"
                             ? "Run source-backed research before rendering a video."
                             : brief.scriptReady === false
                               ? "AI scriptwriting was unavailable. Retry research before rendering."
-                            : "Your sourced brief and PFP will be sent securely to the video provider."}
+                            : service.videoMode === "browser"
+                              ? "The video starts automatically after research. Keep this tab visible while it records for 60 seconds."
+                              : "Your sourced brief and PFP will be sent securely to the video provider."}
                 </p>
               </div>
               <div className="render-action">
@@ -1038,10 +1137,11 @@ export default function ForgeStudio() {
                   <a
                     className="primary-button"
                     href={job.videoUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
+                    {...(job.jobId.startsWith("browser-")
+                      ? { download: `${project.name.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-") || "reel-forge"}-video.${videoExtension}` }
+                      : { target: "_blank", rel: "noopener noreferrer" })}
                   >
-                    <Download size={18} /> Open video <ArrowUpRight size={18} />
+                    <Download size={18} /> {job.jobId.startsWith("browser-") ? "Download video" : "Open video"} <ArrowUpRight size={18} />
                   </a>
                 ) : (
                   <button
@@ -1061,7 +1161,7 @@ export default function ForgeStudio() {
                     (job && ["queued", "processing"].includes(job.status)) ? (
                       <>
                         <LoaderCircle size={18} className="spin" />{" "}
-                        {busy === "render" ? "Starting…" : "Rendering…"}
+                        {service?.videoMode === "browser" ? `Creating video ${renderProgress}%` : busy === "render" ? "Starting…" : "Rendering…"}
                       </>
                     ) : (
                       <>
@@ -1073,7 +1173,7 @@ export default function ForgeStudio() {
                 )}
                 <span>
                   {service?.videoReady
-                    ? "Video API connected"
+                    ? service.videoMode === "browser" ? "Built-in video maker ready" : "Video API connected"
                     : "Video API not connected yet"}
                 </span>
               </div>

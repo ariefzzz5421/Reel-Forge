@@ -4,7 +4,7 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "Reel-Forge — turn a project into a story",
   description:
-    "Build a source-aware 60-second project video brief, shape the scenes, and connect your research and video APIs when ready.",
+    "Research a project and turn its sourced story into a narrated 60-second motion graphics video.",
 };
 
 export default function RootLayout({
