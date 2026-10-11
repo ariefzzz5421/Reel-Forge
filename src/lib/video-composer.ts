@@ -204,6 +204,63 @@ function drawFrame(context: CanvasRenderingContext2D, brief: Brief, project: Pro
   context.fillRect(0, 708, WIDTH * (t / LENGTH_SECONDS), 12);
 }
 
+function startSoundtrack(audioContext: AudioContext, destination: MediaStreamAudioDestinationNode, startAt: number) {
+  const bus = audioContext.createGain();
+  bus.gain.value = 0.22;
+  bus.connect(destination);
+  const scheduled: AudioScheduledSourceNode[] = [];
+  const chords = [
+    [220, 261.63, 329.63],
+    [174.61, 220, 261.63],
+    [196, 246.94, 293.66],
+    [164.81, 196, 246.94],
+  ];
+  for (let block = 0; block < 8; block++) {
+    const start = startAt + block * 7.5;
+    const end = startAt + Math.min(LENGTH_SECONDS, (block + 1) * 7.5);
+    const notes = chords[block % chords.length];
+    for (const frequency of notes) {
+      const oscillator = audioContext.createOscillator();
+      const filter = audioContext.createBiquadFilter();
+      const envelope = audioContext.createGain();
+      oscillator.type = "triangle";
+      oscillator.frequency.value = frequency;
+      filter.type = "lowpass";
+      filter.frequency.value = 850;
+      envelope.gain.setValueAtTime(0, start);
+      envelope.gain.linearRampToValueAtTime(0.065, start + 0.8);
+      envelope.gain.setValueAtTime(0.065, end - 0.8);
+      envelope.gain.linearRampToValueAtTime(0, end);
+      oscillator.connect(filter).connect(envelope).connect(bus);
+      oscillator.start(start);
+      oscillator.stop(end + 0.05);
+      scheduled.push(oscillator);
+    }
+  }
+  for (let beat = 0; beat < 100; beat++) {
+    const start = startAt + beat * 0.6;
+    const root = chords[Math.floor((beat * 0.6) / 7.5) % chords.length][0] / 2;
+    const oscillator = audioContext.createOscillator();
+    const envelope = audioContext.createGain();
+    oscillator.type = "sine";
+    oscillator.frequency.setValueAtTime(root * 1.15, start);
+    oscillator.frequency.exponentialRampToValueAtTime(root, start + 0.11);
+    envelope.gain.setValueAtTime(0, start);
+    envelope.gain.linearRampToValueAtTime(0.18, start + 0.015);
+    envelope.gain.exponentialRampToValueAtTime(0.001, start + 0.35);
+    oscillator.connect(envelope).connect(bus);
+    oscillator.start(start);
+    oscillator.stop(start + 0.36);
+    scheduled.push(oscillator);
+  }
+  return () => {
+    for (const node of scheduled) {
+      try { node.stop(); } catch { /* Already finished. */ }
+    }
+    bus.disconnect();
+  };
+}
+
 export async function renderMotionVideo({ brief, project, mascot, voiceover, audioContext, signal, onProgress }: RenderInput) {
   if (!HTMLCanvasElement.prototype.captureStream || typeof MediaRecorder === "undefined")
     throw new Error("This browser cannot record video. Try the latest Chrome or Edge.");
@@ -220,14 +277,16 @@ export async function renderMotionVideo({ brief, project, mascot, voiceover, aud
   }
   let source: AudioBufferSourceNode | null = null;
   let destination: MediaStreamAudioDestinationNode | null = null;
-  if (voiceover && audioContext) {
-    const audio = await audioContext.decodeAudioData(await voiceover.arrayBuffer());
+  if (audioContext) {
     await audioContext.resume();
     destination = audioContext.createMediaStreamDestination();
+  }
+  if (voiceover && audioContext) {
+    const audio = await audioContext.decodeAudioData(await voiceover.arrayBuffer());
     source = audioContext.createBufferSource();
     source.buffer = audio;
     source.playbackRate.value = Math.max(1, audio.duration / 58);
-    source.connect(destination);
+    source.connect(destination!);
   }
   if (signal?.aborted) throw new DOMException("Video creation was cancelled.", "AbortError");
   drawFrame(context, brief, project, mascotBitmap, 0);
@@ -235,7 +294,7 @@ export async function renderMotionVideo({ brief, project, mascot, voiceover, aud
     ...canvas.captureStream(24).getVideoTracks(),
     ...(destination?.stream.getAudioTracks() ?? []),
   ]);
-  const mimeType = (source ? [
+  const mimeType = (destination ? [
     "video/mp4;codecs=avc1.42E01E,mp4a.40.2",
     "video/webm;codecs=vp9,opus",
     "video/webm;codecs=vp8,opus",
@@ -262,6 +321,7 @@ export async function renderMotionVideo({ brief, project, mascot, voiceover, aud
       let frameTimer = 0;
       let stopTimer = 0;
       let lastReportedSecond = -1;
+      let stopSoundtrack: (() => void) | null = null;
       const started = performance.now();
       const cleanup = () => {
         window.clearInterval(frameTimer);
@@ -270,6 +330,7 @@ export async function renderMotionVideo({ brief, project, mascot, voiceover, aud
         document.removeEventListener("visibilitychange", visibility);
         stream.getTracks().forEach((track) => track.stop());
         try { source?.stop(); } catch { /* Already finished. */ }
+        stopSoundtrack?.();
       };
       const fail = (message: string) => {
         if (finished) return;
@@ -300,11 +361,15 @@ export async function renderMotionVideo({ brief, project, mascot, voiceover, aud
       }
       try {
         recorder.start(1000);
+        if (audioContext && destination) {
+          const startAt = audioContext.currentTime + 0.05;
+          stopSoundtrack = startSoundtrack(audioContext, destination, startAt);
+          source?.start(startAt);
+        }
       } catch {
         fail("This browser could not start recording the video. Try again.");
         return;
       }
-      if (source && audioContext) source.start(audioContext.currentTime + 0.05);
       frameTimer = window.setInterval(() => {
         const elapsed = Math.min(LENGTH_SECONDS, (performance.now() - started) / 1000);
         drawFrame(context, brief, project, mascotBitmap, elapsed);

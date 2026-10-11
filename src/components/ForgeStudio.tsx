@@ -471,11 +471,11 @@ export default function ForgeStudio() {
           narration = await speech.blob();
         } catch (cause) {
           if (controller.signal.aborted) throw cause;
-          setVoiceoverWarning("Gemini voiceover was unavailable; this video has no narration.");
+          setVoiceoverWarning("Gemini voiceover was unavailable; this video has instrumental music and on-screen text, without narration.");
         }
         if (!audioContextRef.current) {
           narration = null;
-          setVoiceoverWarning("This browser cannot add voiceover; the video has no narration.");
+          setVoiceoverWarning("This browser cannot add audio; the video has no sound.");
         }
         setRenderMessage("Recording the 60-second motion graphics video. Keep this tab visible.");
         const { renderMotionVideo } = await import("@/lib/video-composer");
@@ -1105,7 +1105,7 @@ export default function ForgeStudio() {
                 <span className="eyebrow">FINAL CUT</span>
                 <h3>
                   {job?.status === "completed"
-                    ? voiceoverWarning ? "Your silent video is ready." : "Your film is ready."
+                    ? "Your film is ready."
                     : job?.status === "failed"
                       ? "Render failed."
                       : job
